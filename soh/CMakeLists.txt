@@ -167,6 +167,11 @@ endif()
 # soh/Extractor {{{
 list(FILTER ship__ EXCLUDE REGEX "soh/Extractor/*")
 
+if(CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch|CafeOS")
+    # The torch-based extractor is desktop only
+    list(FILTER soh__ EXCLUDE REGEX "soh/Extractor/.*\\.(c|cpp)$")
+endif()
+
 if(NOT CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch|CafeOS")
     file(GLOB_RECURSE soh__Extractor CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         "soh/Extractor/*.c"
@@ -227,6 +232,10 @@ set(ALL_FILES
 # Target
 ################################################################################
 add_executable(${PROJECT_NAME} ${ALL_FILES})
+
+if (CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    target_compile_options(${PROJECT_NAME} PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/platform/switch_compat.h)
+endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 use_props(${PROJECT_NAME} "${CMAKE_CONFIGURATION_TYPES}" "${DEFAULT_CXX_PROPS}")
@@ -527,10 +536,10 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             $<$<COMPILE_LANGUAGE:C>:
                 -Werror-implicit-function-declaration
                 -Wno-incompatible-pointer-types
+                -Wno-int-conversion # decomp code; an error by default since GCC 14
             >
             $<$<COMPILE_LANGUAGE:CXX>:-fpermissive>
             $<$<COMPILE_LANGUAGE:CXX>:
-                -Wno-c++11-narrowing
                 -Wno-deprecated-enum-enum-conversion
             >
             -pthread
@@ -614,10 +623,10 @@ add_custom_command(
 ################################################################################
 # Dependencies
 ################################################################################
-add_dependencies(${PROJECT_NAME}
-    libultraship
-    torch
-)
+add_dependencies(${PROJECT_NAME} libultraship)
+if (TARGET torch)
+    add_dependencies(${PROJECT_NAME} torch)
+endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(glfw3 REQUIRED)
@@ -668,9 +677,20 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     find_package(SDL2)
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
+    # Audio codecs (custom sequences / audio packs) and SDL_net (Anchor) from devkitPro portlibs
+    target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE
+        ${DEVKITPRO}/portlibs/switch/include/opus
+    )
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        -lSDL2_net
         SDL2::SDL2
+        -lopusfile
+        -lopus
+        -lvorbisenc
+        -lvorbisfile
+        -lvorbis
+        -logg
         -lglad
         Threads::Threads
     )

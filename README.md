@@ -1,100 +1,86 @@
 ![Ship of Harkinian](docs/shiptitle.darkmode.png#gh-dark-mode-only)
 ![Ship of Harkinian](docs/shiptitle.lightmode.png#gh-light-mode-only)
 
-* [Website](https://www.shipofharkinian.com)
-* [Discord](https://discord.com/invite/harbourmasters)
+# Shipwright-NX — Ship of Harkinian for Nintendo Switch
 
-If you're having any trouble after reading through this `README`, feel free to ask for help in the Support text channels. Please keep in mind that we do not condone piracy.
+An unofficial, Switch-only fork of [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright)
+(based on **9.3.1**). Upstream dropped the Switch after 8.0.6; this fork brings it back with all current
+features and a **native deko3d renderer** instead of OpenGL on Mesa.
 
-# Quick Start
+All credit for the port itself goes to the [Harbour Masters](https://github.com/HarbourMasters). Please do
+not ask them for support with this fork. The Ship does not include any copyrighted assets: you need your
+own copy of the game. We do not condone piracy.
 
-The Ship does not include any copyrighted assets.  You are required to provide a supported copy of the game.
+## Highlights
 
-### 1. Verify your ROM dump
-You can verify you have dumped a supported copy of the game by using the compatibility checker at https://ship.equipment/. If you'd prefer to manually validate your ROM dump, you can cross-reference its `sha1` hash with the hashes [here](docs/supportedHashes.json).
+- **deko3d renderer**: draws go straight to the GPU, no driver in between. In Hyrule Field at stock clocks
+  (1020 MHz, handheld) with 60 FPS frame interpolation: OpenGL ran at 52–55 FPS (game slowed to ~90 %),
+  deko3d holds 60 FPS with about half of each frame to spare. No overclock needed.
+- Shaders are generated from the same templates as on PC and compiled on the console by
+  [uam](https://github.com/devkitPro/uam), then cached on the SD card.
+- Native Switch integration: HOME/sleep handling, software keyboard, touch screen in the menu, controller
+  buttons by label (A confirms, B goes back), docked 1080p / handheld 720p.
+- CPU clocks are left to the system (or sys-clk) by default; optional profiles in
+  *Settings → General → Switch Performance Mode*.
 
-### 2. Download The Ship of Harkinian from [Releases](https://github.com/HarbourMasters/Shipwright/releases)
+## Installation
 
-### 3. Launch the Game!
-#### Windows
-* Extract the zip
-* Launch `soh.exe`
+1. Download `Shipwright-NX` from the [Actions](../../actions) artifacts (or Releases, if any) and copy
+   `switch/soh/` to the SD card:
+   ```
+   sdmc:/switch/soh/soh.nro
+   sdmc:/switch/soh/soh.o2r
+   ```
+2. Create `oot.o2r` (and/or `oot-mq.o2r`) from your ROM with the **PC version of SoH 9.3.1**
+   ([download](https://github.com/HarbourMasters/Shipwright/releases/tag/9.3.1)) and copy it next to
+   `soh.nro`. ROM extraction is not available on the Switch. You can check your dump at
+   https://ship.equipment/.
+3. Launch from the Homebrew Menu (or sphaira) in **full-memory mode**: hold R while starting any game.
+   Applet mode (from the Album) is not supported.
 
-#### Linux
-* Execute `soh.appimage`.  You may have to `chmod +x` the appimage via terminal.
-* When prompted, select your supported copy of the game.
-* Saves, settings and `oot.o2r` are stored in `~/.local/share/soh/`. If the folder you launch from already has `shipofharkinian.json`, `oot.o2r` or `oot-mq.o2r`, that folder is used instead. Set `SHIP_HOME` to choose another folder.
+On the first run, every new shader is compiled once (30–100 ms each) and cached in
+`sdmc:/switch/soh/cache/dksh/`, so new areas may stutter briefly the first time only.
 
-#### macOS
-* Run `soh.app`. When prompted, select your supported copy of the game.
-* You should see a notification saying `Processing OTR`, then, once the process is complete, you should get a notification saying `OTR Successfully Generated`, then the game should start.
+## Controls
 
-### 4. Play!
+- **−** opens and closes the SoH menu. Navigate with the D-pad (A select, B back) or the touch screen.
 
-Congratulations, you are now sailing with the Ship of Harkinian! Have fun!
+## Building
 
-# Configuration
+Requirements: Docker (for devkitA64) and a host compiler with CMake, Ninja, zlib, bzip2 and libpng
+(for the asset tools).
 
-### Default keyboard configuration
-| N64 | A | B | Z | Start | Analog stick | C buttons | D-Pad |
-| - | - | - | - | - | - | - | - |
-| Keyboard | X | C | Z | Space | WASD | Arrow keys | TFGH |
+```bash
+git clone --recursive https://github.com/MintCarasique/Shipwright-NX.git
+cd Shipwright-NX
+tools/switch/build.sh configure
+```
 
-### Other shortcuts
-| Keys | Action |
-| - | - |
-| ESC | Toggle menu |
-| F2 | Toggle capture mouse input |
-| F5 | Save state |
-| F6 | Change state |
-| F7 | Load state |
-| F9 | Toggle Text-to-Speech |
-| F11 | Fullscreen |
-| Tab | Toggle Alternate assets |
-| Ctrl+R | Reset |
+Outputs: `build-switch/soh/soh.nro` and `build-host/soh/soh.o2r`. CI (`.github/workflows/switch.yml`) does
+the same and packages the SD card layout.
 
-# Project Overview
-Ship of Harkinian (SOH) is built atop a custom library dubbed libultraship (LUS). Back in the N64 days, there was an SDK distributed to developers named libultra; LUS is designed to mimic the functionality of libultra on modern hardware. In addition, we are dependent on the source code provided by the OOT decompilation project.
+The renderer and platform code live in the [libultraship-nx](https://github.com/MintCarasique/libultraship-nx)
+fork (branch `switch`), included here as the `libultraship` submodule.
 
-In order for the game to function, you will require a **legally acquired** ROM for Ocarina of Time. Click [here](https://ship.equipment/) to check the compatibility of your specific rom. Any copyrighted assets are extracted from the ROM and reformatted as a .o2r archive file which the code uses.
+## Debugging over nxlink
 
-### Graphics Backends
-Currently, there are three rendering APIs supported: DirectX11 (Windows), OpenGL (all platforms), and Metal (MacOS). You can change which API to use in the `Settings` menu of the menubar, which requires a restart.  If you're having an issue with crashing, you can change the API in the `shipofharkinian.json` file by finding the line `gfxbackend:""` and changing the value to `sdl` for OpenGL. DirectX 11 is the default on Windows.
+Launch with nxlink in server mode, e.g. `nxlink -a <switch ip> -p soh/soh.nro -s soh.nro`. While connected
+the game streams:
 
-# Custom Assets
+- its log, plus one `[prof]` / `[gl]` line per second (FPS, game logic / render / swap time, audio buffer,
+  CPU/GPU/EMC clocks);
+- a screenshot every 15 seconds — `python tools/switch/nxlink_screens.py live.log` turns them into PNGs;
+- on a crash, a `[crash]` block with module-relative addresses; symbolize them with
+  `aarch64-none-elf-addr2line -f -C -e soh.elf <offset>` (the CI uploads `soh.elf`).
 
-Custom assets are packed in `.otr` archive files. To use custom assets, place them in the `mods` folder.
+Without nxlink all of this is off.
 
-If you're interested in creating and/or packing your own custom asset `.otr` files, check out the following tools:
-* [**retro - OTR generator**](https://github.com/HarbourMasters64/retro)
-* [**fast64 - Blender plugin**](https://github.com/HarbourMasters/fast64)
+## Known limitations
 
-# Development
-### Building
+- OpenGL is not available on the Switch build: uam's copy of Mesa and switch-mesa's libEGL cannot coexist.
+- MSAA is not implemented.
 
-If you want to manually compile SoH, please consult the [building instructions](docs/BUILDING.md).
+## License
 
-### Playtesting
-If you want to playtest a continuous integration build, you can find them at the links below. Keep in mind that these are for playtesting only, and you will likely encounter bugs and possibly crashes. 
-
-* [Windows](https://nightly.link/HarbourMasters/Shipwright/workflows/generate-builds/develop/soh-windows.zip)
-* [macOS](https://nightly.link/HarbourMasters/Shipwright/workflows/generate-builds/develop/soh-mac.zip)
-* [Linux X86_64](https://nightly.link/HarbourMasters/Shipwright/workflows/generate-builds/develop/soh-linux-x86_64.zip)
-* [Linux ARM](https://nightly.link/HarbourMasters/Shipwright/workflows/generate-builds/develop/soh-linux-aarch64.zip)
-
-### Further Reading
-More detailed documentation can be found in the 'docs' directory, including the aforementioned [building instructions](docs/BUILDING.md).
-
-* [Credits](docs/CREDITS.md)
-* [Custom Music](docs/CUSTOM_MUSIC.md)
-* [Formatting](docs/FORMATTING.md)
-* [Controller Mapping](docs/GAME_CONTROLLER_DB.md)
-* [Modding](docs/MODDING.md)
-* [Versioning](docs/VERSIONING.md)
-
-<a href="https://github.com/Kenix3/libultraship/">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/poweredbylus.darkmode.png">
-    <img alt="Powered by libultraship" src="./docs/poweredbylus.lightmode.png">
-  </picture>
-</a>
+Same as upstream Ship of Harkinian and libultraship. uam (`libultraship/extern/uam`) is zlib (its own
+files) and MIT (`mesa-imported/`).

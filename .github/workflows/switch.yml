@@ -1,0 +1,73 @@
+name: Switch build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # soh.o2r (the port's own assets and shader templates) is built by the host tools
+  soh-o2r:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build zlib1g-dev libbz2-dev libpng-dev
+      - name: Build soh.o2r
+        run: |
+          cmake -H. -Bbuild-host -GNinja -DSOH_TOOLS_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-host --target GenerateSohOtr
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soh-o2r
+          path: build-host/soh/soh.o2r
+
+  nro:
+    runs-on: ubuntu-24.04
+    container: devkitpro/devkita64:latest
+    steps:
+      - name: Prepare toolchain
+        run: |
+          # portlibs ships tinyxml2 6.0.0, whose header shadows the 11.0.0 that libultraship builds
+          dkp-pacman -Rdd --noconfirm switch-tinyxml2
+          git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build soh.nro
+        run: |
+          cmake -H. -Bbuild-switch -GNinja -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-switch --target soh_nro
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soh-nro
+          path: |
+            build-switch/soh/soh.nro
+            build-switch/soh/soh.elf
+
+  package:
+    needs: [soh-o2r, nro]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Assemble SD card layout
+        run: |
+          mkdir -p pkg/switch/soh
+          cp artifacts/soh-nro/soh.nro artifacts/soh-o2r/soh.o2r pkg/switch/soh/
+          cp README.md pkg/README.md
+          cp tools/switch/nxlink_screens.py pkg/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shipwright-NX
+          path: pkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: soh-elf-symbols
+          path: artifacts/soh-nro/soh.elf

@@ -69,7 +69,7 @@
 #endif
 
 #ifdef __SWITCH__
-#include <port/switch/SwitchImpl.h>
+#include "ship/port/switch/SwitchImpl.h"
 #elif defined(__WIIU__)
 #include <port/wiiu/WiiUImpl.h>
 #include <coreinit/debug.h> // OSFatal
@@ -427,7 +427,9 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
             args.push_back(argv[i]);
         }
     }
+#if !defined(__SWITCH__) && !defined(__WIIU__)
     Extractor extract;
+#endif
     PromptSteps promptStep = PS_FILE_CHECK;
     bool generatedIsMQ = false;
     // Whether generatedIsMQ is set, i.e. the first prompted rom extracted fine
@@ -442,20 +444,25 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
     std::string file;
 
 #if defined(__SWITCH__)
-    SohGui::RegisterPopup("Outdated ROM Archives",
-                          "\x1b[2;2HYou've launched the Ship with an old ROM O2R file."
-                          "\x1b[4;2HPlease regenerate a new ROM O2R and relaunch."
-                          "\x1b[6;2HPress the Home button to exit...",
-                          "OK", "", [&]() { exit(1); });
+    // There is no extractor on Switch: the ROM archives have to be generated with the desktop
+    // build of the same SoH version and copied next to soh.nro.
+    if (shouldRegen) {
+        SohGui::RegisterPopup("Outdated ROM Archives",
+                              "Your oot.o2r or oot-mq.o2r were created with an incompatible version of SoH.\n"
+                              "Please regenerate them with the PC version of SoH " +
+                                  spdlog::fmt_lib::format("{}.{}.{}", gBuildVersionMajor, gBuildVersionMinor, gBuildVersionPatch) +
+                                  "\nand copy them next to soh.nro.",
+                              "Exit", "", [&]() { exit(1); });
+    }
 #elif defined(__WIIU__)
-    SohGui::RegisterPopup("Outdated ROM Archives",
-                          "You've launched the Ship with an old a ROM O2R file.\n\n"
-                          "Please generate a ROM O2R and relaunch.\n\n"
-                          "Press and hold the Power button to shutdown...",
-                          "OK", "", [&]() { exit(1); });
-    OSFatal();
-#endif
-
+    if (shouldRegen) {
+        SohGui::RegisterPopup("Outdated ROM Archives",
+                              "You've launched the Ship with an old a ROM O2R file.\n\n"
+                              "Please generate a ROM O2R and relaunch.\n\n"
+                              "Press and hold the Power button to shutdown...",
+                              "OK", "", [&]() { exit(1); });
+    }
+#else
     if (!std::filesystem::exists(installPath + "/assets")) {
         SohGui::RegisterPopup("Extractor assets not found",
                               "No O2R files found. Missing 'assets/' folder needed to generate OTR file.\nPlease "
@@ -475,6 +482,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                 "OK", "", [&]() { exit(1); });
         }
     }
+#endif
 
     std::shared_ptr<BS::thread_pool> threadPool = std::make_shared<BS::thread_pool>(1);
     std::optional<std::future<void>> extractionTask;
@@ -501,8 +509,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                     std::string msg;
 
 #if defined(__SWITCH__)
-                    msg = "\x1b[4;2HPlease re-extract it from the download.\n"
-                          "\x1b[6;2HPress the Home button to exit...";
+                    msg = "Please copy soh.o2r from the Switch download next to soh.nro.";
 #elif defined(__WIIU__)
                     msg = "Please extract the soh.o2r from the Ship of Harkinian download\nto your folder.\n\nPress "
                           "and hold the power\n"
@@ -643,6 +650,10 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                 break;
             }
             case ES_EXTRACT: {
+#if defined(__SWITCH__) || defined(__WIIU__)
+                extractStep = ES_VERIFY;
+                continue;
+#else
                 switch (promptStep) {
                     case PS_FILE_CHECK: {
                         const bool ootO2RExists =
@@ -732,6 +743,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                         break;
                 }
                 break;
+#endif
             }
             case ES_VERIFY: {
                 const bool ootO2RExists =
@@ -739,9 +751,18 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                     std::filesystem::exists(Ship::Context::LocateFileAcrossAppDirs("oot.o2r", appShortName));
 
                 if (!ootO2RExists) {
+#ifdef __SWITCH__
+                    SohGui::RegisterPopup("No ROM Archives",
+                                          "No oot.o2r or oot-mq.o2r found.\nGenerate it from your ROM with the PC "
+                                          "version of SoH " +
+                                              spdlog::fmt_lib::format("{}.{}.{}", gBuildVersionMajor, gBuildVersionMinor, gBuildVersionPatch) + "\nand copy it next to soh.nro.",
+                                          "Exit", "", [&]() { exit(0); });
+                    continue;
+#else
                     SohGui::RegisterPopup("No ROM Archives",
                                           "No ROM O2R files detected. Please generate a ROM O2R and relaunch.", "OK",
                                           "", [&]() { exit(0); });
+#endif
                 }
                 extractDone = true;
                 continue;
@@ -815,9 +836,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
         ImGui::PopStyleColor(2);
     }
 
-#ifdef __SWITCH__
-    Ship::Switch::Init(Ship::PreInitPhase);
-#elif defined(__WIIU__)
+#if defined(__WIIU__)
     Ship::WiiU::Init(appShortName);
 #endif
 }
@@ -878,7 +897,12 @@ void OTRGlobals::Initialize() {
                                               CVarGetInteger(CVAR_SETTING("AutoCaptureMouse"), 1));
     context->GetWindow()->SetForceCursorVisibility(CVarGetInteger(CVAR_SETTING("CursorVisibility"), 0));
 
+#ifdef __SWITCH__
+    // ~100 ms of queued audio (vs ~50 ms on PC) to ride out frame-time spikes at 60 FPS
+    context->InitAudio({ .SampleRate = 32000, .SampleLength = 1024, .DesiredBuffered = 3200 });
+#else
     context->InitAudio({ .SampleRate = 32000, .SampleLength = 1024, .DesiredBuffered = 1680 });
+#endif
 
     // The menu is set up before audio is initialized, so its list of available audio backends has to be
     // populated here rather than in Menu::InitElement (where the window backends are handled).
@@ -1067,6 +1091,11 @@ extern "C" int AudioPlayer_GetDesiredBuffered(void);
 std::unordered_map<std::string, ExtensionEntry> ExtensionCache;
 
 void OTRAudio_Thread() {
+#ifdef __SWITCH__
+    // Under libnx every thread starts on core 0 next to the render loop; at 60 FPS that starves
+    // audio mixing and causes underruns (crackling). Give it core 1 and a slight priority bump.
+    Ship::Switch::PinCurrentThreadToCore(1, true);
+#endif
     while (audio.running) {
         {
             std::unique_lock<std::mutex> Lock(audio.mutex);
@@ -1090,16 +1119,31 @@ void OTRAudio_Thread() {
 
         int samples_left = AudioPlayer_Buffered();
         u32 num_audio_samples = samples_left < AudioPlayer_GetDesiredBuffered() ? SAMPLES_HIGH : SAMPLES_LOW;
+#ifdef __SWITCH__
+        Ship::SwitchProf::SetAudioBuffered(samples_left);
+        Ship::SwitchProfScope profScope(Ship::PROF_AUDIO_MIX);
+#endif
 
-        // 3 is the maximum authentic frame divisor.
-        s16 audio_buffer[SAMPLES_HIGH * NUM_AUDIO_CHANNELS * 3];
-        for (int i = 0; i < AUDIO_FRAMES_PER_UPDATE; i++) {
+        int audio_frames = AUDIO_FRAMES_PER_UPDATE;
+#ifdef __SWITCH__
+        // When the game briefly runs below full speed the queue drains faster than SAMPLES_HIGH can
+        // refill it, and it underruns (crackling). If it is nearly empty, synthesize one extra
+        // normal-sized update this tick instead of growing per-call sample counts, which the
+        // synthesizer's fixed update buffers can't take.
+        if (samples_left < AudioPlayer_GetDesiredBuffered() / 3 && audio_frames < 4) {
+            audio_frames++;
+        }
+#endif
+
+        // 3 is the maximum authentic frame divisor (+1 catch-up update on Switch).
+        s16 audio_buffer[SAMPLES_HIGH * NUM_AUDIO_CHANNELS * 4];
+        for (int i = 0; i < audio_frames; i++) {
             AudioMgr_CreateNextAudioBuffer(audio_buffer + i * (num_audio_samples * NUM_AUDIO_CHANNELS),
                                            num_audio_samples);
         }
 
         AudioPlayer_Play((u8*)audio_buffer,
-                         num_audio_samples * (sizeof(int16_t) * NUM_AUDIO_CHANNELS * AUDIO_FRAMES_PER_UPDATE));
+                         num_audio_samples * (sizeof(int16_t) * NUM_AUDIO_CHANNELS * audio_frames));
 
         audio.processing = false;
         audio.cv_from_thread.notify_one();
@@ -1506,7 +1550,12 @@ OTRVersion DetectOTRVersion(std::string fileName, bool isMQ) {
 }
 
 extern "C" void Messagebox_ShowErrorBox(char* title, char* body) {
+#if defined(__SWITCH__) || defined(__WIIU__)
+    SPDLOG_ERROR("{}: {}", title, body);
+    SohGui::RegisterPopup(title, body);
+#else
     Extractor::ShowErrorBox(title, body);
+#endif
 }
 
 bool VerifyArchiveVersion(OTRVersion version) {
@@ -1550,6 +1599,10 @@ static void SetAppImageHome() {
 extern "C" void InitOTR(int argc, char* argv[]) {
 #ifdef __linux__
     SetAppImageHome();
+#endif
+#ifdef __SWITCH__
+    // Bail out early (before SDL/GL exist) if launched in applet mode with too little memory
+    Ship::Switch::Init(Ship::PreInitPhase);
 #endif
     OTRGlobals::Instance = new OTRGlobals();
     OTRGlobals::Instance->RunExtract(argc, argv);
@@ -1819,6 +1872,12 @@ void RunCommands(Gfx* Commands, int time, int step, int denom, int count) {
 
 // C->C++ Bridge
 extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
+#ifdef __SWITCH__
+    static uint64_t sLogicStart = 0;
+    if (sLogicStart != 0 && Ship::SwitchProf::Enabled()) {
+        Ship::SwitchProf::Add(Ship::PROF_LOGIC, sLogicStart);
+    }
+#endif
     {
         std::unique_lock<std::mutex> Lock(audio.mutex);
         audio.processing = true;
@@ -1865,17 +1924,28 @@ extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
         count = 1;
     }
 
-    RunCommands(commands, start_time, step, next_original_frame, count);
+    {
+#ifdef __SWITCH__
+        Ship::SwitchProfScope profScope(Ship::PROF_RENDER);
+#endif
+        RunCommands(commands, start_time, step, next_original_frame, count);
+    }
 
     last_fps = fps;
     last_update_rate = R_UPDATE_RATE;
 
     {
+#ifdef __SWITCH__
+        Ship::SwitchProfScope profScope(Ship::PROF_AUDIO_WAIT);
+#endif
         std::unique_lock<std::mutex> Lock(audio.mutex);
         while (audio.processing) {
             audio.cv_from_thread.wait(Lock);
         }
     }
+#ifdef __SWITCH__
+    sLogicStart = Ship::SwitchProf::Now();
+#endif
 
     bool curAltAssets = CVarGetInteger(CVAR_SETTING("AltAssets"), 1);
     if (prevAltAssets != curAltAssets) {

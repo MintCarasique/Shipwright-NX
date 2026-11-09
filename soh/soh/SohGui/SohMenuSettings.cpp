@@ -8,6 +8,9 @@
 #include "UIWidgets.hpp"
 #include <ship/controller/controldeck/ControlDeck.h>
 #include <ship/Context.h>
+#ifdef __SWITCH__
+#include "ship/port/switch/SwitchImpl.h"
+#endif
 
 extern "C" {
 #include "include/z64audio.h"
@@ -49,6 +52,19 @@ static const std::map<int32_t, const char*> textureFilteringMap = {
     { Fast::FILTER_LINEAR, "Linear" },
     { Fast::FILTER_NONE, "None" },
 };
+
+#ifdef __SWITCH__
+static const std::map<int32_t, const char*> switchPerfModeOptions = {
+    { Ship::SYSTEM_DEFAULT, Ship::SWITCH_CPU_PROFILES[Ship::SYSTEM_DEFAULT] },
+    { Ship::MAXIMUM, Ship::SWITCH_CPU_PROFILES[Ship::MAXIMUM] },
+    { Ship::HIGH, Ship::SWITCH_CPU_PROFILES[Ship::HIGH] },
+    { Ship::BOOST, Ship::SWITCH_CPU_PROFILES[Ship::BOOST] },
+    { Ship::STOCK, Ship::SWITCH_CPU_PROFILES[Ship::STOCK] },
+    { Ship::POWERSAVINGM1, Ship::SWITCH_CPU_PROFILES[Ship::POWERSAVINGM1] },
+    { Ship::POWERSAVINGM2, Ship::SWITCH_CPU_PROFILES[Ship::POWERSAVINGM2] },
+    { Ship::POWERSAVINGM3, Ship::SWITCH_CPU_PROFILES[Ship::POWERSAVINGM3] },
+};
+#endif
 
 static const std::map<int32_t, const char*> notificationPosition = {
     { 0, "Top Left" }, { 1, "Top Right" }, { 2, "Bottom Left" }, { 3, "Bottom Right" }, { 4, "Hidden" },
@@ -172,6 +188,26 @@ void SohMenu::AddMenuSettings() {
                 CVarGetInteger(CVAR_SETTING("CursorVisibility"), 0));
         })
         .Options(CheckboxOptions().Tooltip("Makes the cursor always visible, even in full screen."));
+#endif
+#ifdef __SWITCH__
+    AddWidget(path, "Menu Background Opacity", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar(CVAR_SETTING("Menu.BackgroundOpacity"))
+        .RaceDisable(false)
+        .Options(FloatSliderOptions().DefaultValue(0.85f).IsPercentage().Tooltip(
+            "Sets the opacity of the background of the port menu."));
+
+    AddWidget(path, "Switch Settings", WIDGET_SEPARATOR_TEXT);
+    AddWidget(path, "Switch Performance Mode", WIDGET_CVAR_COMBOBOX)
+        .CVar(CVAR_SWITCH_PERF_MODE)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) { Ship::Switch::ApplyOverclock(); })
+        .Options(ComboboxOptions()
+                     .Tooltip("CPU clock. System Default leaves clocks to the system or sys-clk.\n"
+                              "SoH needs about 1785 MHz (Maximum Performance) for a steady 60 FPS with frame "
+                              "interpolation; at the stock 1020 MHz busy areas drop to ~20 FPS.\n"
+                              "If you use sys-clk, set the clock there instead: sys-clk overrides this.")
+                     .ComboMap(switchPerfModeOptions)
+                     .DefaultIndex(Ship::SYSTEM_DEFAULT));
 #endif
     AddWidget(path, "Search In Sidebar", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_SETTING("Menu.SidebarSearch"))

@@ -133,6 +133,8 @@ set(CMAKE_C_FLAGS_DEBUG "-g -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+# newlib hides POSIX/GNU extensions (fileno, fseeko, ...) under strict -std=c++20
+add_compile_definitions(_GNU_SOURCE)
 else()
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
@@ -195,9 +197,11 @@ add_compile_definitions(CONTROLLERBUTTONS_T=uint32_t)
 ################################################################################
 # Torch (ROM asset extraction)
 ################################################################################
-find_package(ZLIB REQUIRED)
-
 include(FetchContent)
+
+# Consoles can't run the extractor; oot.o2r and soh.o2r are produced by a desktop build
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+find_package(ZLIB REQUIRED)
 
 # spdlog runs fmt's consteval format check in every log macro, and clang >= 21 rejects it as
 # not constant with fmt < 11.1: FMT_STRING's compile string converts to two distinct literal
@@ -242,6 +246,8 @@ foreach(_torch_game SM64 MK64 SF64 PM64 FZERO BK64 MARIO_ARTIST)
     set(BUILD_${_torch_game} OFF CACHE BOOL "" FORCE)
 endforeach()
 
+endif() # NOT NintendoSwitch
+
 # SYSTEM only covers headers we include; torch and the libraries it fetches still warn while
 # compiling their own sources. None of that is ours to fix.
 if(MSVC)
@@ -280,6 +286,7 @@ function(quiet_dependency_tree dir)
     endforeach()
 endfunction()
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
 add_subdirectory(torch SYSTEM)
 quiet_dependency_tree(${CMAKE_CURRENT_SOURCE_DIR}/torch)
 
@@ -358,6 +365,7 @@ add_custom_target(GenerateSohOtr ALL DEPENDS ${CMAKE_BINARY_DIR}/soh/soh.o2r)
 
 # ExtractAssets produced soh.o2r as well as the rom archives, so keep doing that.
 add_dependencies(ExtractAssets GenerateSohOtr)
+endif() # NOT NintendoSwitch
 
 # The asset tools only need torch, so a tools-only configure can skip libultraship and soh
 # entirely -- that is all CI needs to produce soh.o2r.
