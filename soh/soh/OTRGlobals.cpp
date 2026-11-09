@@ -1617,6 +1617,17 @@ extern "C" void InitOTR(int argc, char* argv[]) {
     SOH::RegisterVersionUpdaters(conf.get());
     conf->RunVersionUpdates();
 
+#ifdef __SWITCH__
+    // Defaults that suit the Switch (the right stick is a camera stick, see the default button
+    // layout in libultraship). Only applied while the player has not set them.
+    CVarRegisterInteger(CVAR_SETTING("FreeLook.Enabled"), 1);
+    CVarRegisterInteger(CVAR_SETTING("FreeLook.InvertYAxis"), 0);
+    CVarRegisterInteger(CVAR_SETTING("Controls.RightStickAim"), 1);
+    CVarRegisterInteger(CVAR_SETTING("Controls.InvertAimingYAxis"), 0);
+    CVarRegisterInteger(CVAR_SETTING("Controls.InvertZAimingYAxis"), 0);
+    CVarRegisterInteger(CVAR_SETTING("InterpolationFPS"), 60);
+#endif
+
     SohGui::SetupGuiElements();
     SohGui::SetupMenuElements();
 
