@@ -25,8 +25,8 @@ own copy of the game. We do not condone piracy.
 
 ## Installation
 
-1. Download `Shipwright-NX` from the [Actions](../../actions) artifacts (or Releases, if any) and copy
-   `switch/soh/` to the SD card:
+1. Download `Shipwright-NX-<version>.zip` from [Releases](../../releases) and unpack it to the root of the
+   SD card (builds of every commit are also in the [Actions](../../actions) artifacts):
    ```
    sdmc:/switch/soh/soh.nro
    sdmc:/switch/soh/soh.o2r
@@ -44,6 +44,12 @@ On the first run, every new shader is compiled once (30–100 ms each) and cache
 ## Controls
 
 - **−** opens and closes the SoH menu. Navigate with the D-pad (A select, B back) or the touch screen.
+
+## Versions
+
+Versions follow upstream Ship of Harkinian, with our build number after a dash: `9.3.1-1`, `9.3.1-2`, ...
+The number restarts at 1 when the fork moves to a new upstream release. Pushing a tag in that form makes
+CI build it and publish a release (the tag must match the version in `CMakeLists.txt`).
 
 ## Building
 

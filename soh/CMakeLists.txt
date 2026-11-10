@@ -796,10 +796,18 @@ endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "NintendoSwitch")
 
+# Shipwright-NX versions are the upstream version plus our build number: 9.3.1-1, 9.3.1-2, ...
+set(SOH_NX_BUILD "" CACHE STRING "Shipwright-NX build number (the part after the dash)")
+# (CMAKE_PROJECT_VERSION: the top-level Ship project; project(soh) above clears PROJECT_VERSION_*)
+set(SOH_NX_VERSION "${CMAKE_PROJECT_VERSION}")
+if(SOH_NX_BUILD)
+    string(APPEND SOH_NX_VERSION "-${SOH_NX_BUILD}")
+endif()
+
 nx_generate_nacp(Ship.nacp
    NAME "Ship of Harkinian"
    AUTHOR "${PROJECT_TEAM}"
-   VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
+   VERSION "${SOH_NX_VERSION}"
 )
 
 nx_create_nro(soh
