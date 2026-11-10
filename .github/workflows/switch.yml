@@ -10,7 +10,7 @@ jobs:
   soh-o2r:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Install host dependencies
@@ -21,7 +21,7 @@ jobs:
         run: |
           cmake -H. -Bbuild-host -GNinja -DSOH_TOOLS_ONLY=ON -DCMAKE_BUILD_TYPE=Release
           cmake --build build-host --target GenerateSohOtr
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: soh-o2r
           path: build-host/soh/soh.o2r
@@ -35,14 +35,14 @@ jobs:
           # portlibs ships tinyxml2 6.0.0, whose header shadows the 11.0.0 that libultraship builds
           dkp-pacman -Rdd --noconfirm switch-tinyxml2
           git config --global --add safe.directory '*'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - name: Build soh.nro
         run: |
           cmake -H. -Bbuild-switch -GNinja -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_BUILD_TYPE=Release
           cmake --build build-switch --target soh_nro
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: soh-nro
           path: |
@@ -53,8 +53,8 @@ jobs:
     needs: [soh-o2r, nro]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Assemble SD card layout
@@ -63,11 +63,11 @@ jobs:
           cp artifacts/soh-nro/soh.nro artifacts/soh-o2r/soh.o2r pkg/switch/soh/
           cp README.md pkg/README.md
           cp tools/switch/nxlink_screens.py pkg/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Shipwright-NX
           path: pkg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: soh-elf-symbols
           path: artifacts/soh-nro/soh.elf
